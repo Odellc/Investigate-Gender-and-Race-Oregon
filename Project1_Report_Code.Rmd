@@ -1,0 +1,512 @@
+---
+title: "Project 1"
+author: "Odell, Christopher; Hartman Kara; Gong, Yao"
+date: '2020-02-02'
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tree)
+#install.packages("Epi")
+#library(parcor)
+#library(Epi)
+
+data <- read.table("psam_p41.csv", header=T, quote="\"", sep=",")
+
+q_data<- data %>% dplyr::select("SEX", "AGEP", "SCHL", "RAC1P", "MAR", "WKHP", "PINCP", "OCCP", "COW")
+q_data <- as_tibble(q_data)
+summary(q_data)
+q_data_fitlered <- q_data %>% filter(AGEP > 16 , AGEP < 67, !is.na(SCHL),!is.na(WKHP), PINCP >0)
+summary(q_data %>% filter(AGEP > 16 , AGEP < 67))
+q_data_fitlered$RAC1P <- as.factor(q_data_fitlered$RAC1P)
+q_data_fitlered$SEX <- as.factor(q_data_fitlered$SEX)
+q_data_fitlered$MAR <- as.factor(q_data_fitlered$MAR)
+# q_data$OCCP <- as.factor(q_data$OCCP)
+q_data_fitlered$COW <- as.factor(q_data_fitlered$COW)
+q_data_fitlered$OCCP
+q_data_fitlered$OCCP <- cut(q_data_fitlered$OCCP, 
+                            breaks=c(0, 430, 740, 950, 1240,1560,
+                                     1965,2060,2160,2550,2920,3540,
+                                     3655,3955,4150,4250,4650, 4965,
+                                     5940,6130,6765,6940,7630,8965,
+                                     9750,9830,Inf),
+                            labels=c("MGR", "BUS","FIN","CMM","ENG","SCI",
+                                         "CMS", "LGL", "EDU", "ENT", "MED", "HLS",
+                                         "PRT","EAT", "CLN", "PRS","SAL", "OFF", 
+                                         "FFF","CON", "EXT", "RPR", "PRD","TRN",
+                                         "MIL","OTHER"))
+#class(q_data_fitlered$OCCP)
+ethnicity <- c("White alone", "African American alone", "American Indian alone", "Alaska Native alone", "Native American", "Asian alone", "Native Hawaiian alone", "Other", "Two or More Races")
+
+levels(q_data_fitlered$RAC1P) <- ethnicity
+levels(q_data_fitlered$SEX) <- c("Male", "Female")
+
+```
+
+
+# To find potential relationship between varaibles and proper forms of variables included in linear models, based on following plots for Q1-3:
+
+PINCP VS RAC1P
+```{r}
+#ggplot(q_data_fitlered,aes(RAC1P,PINCP))+geom_boxplot()
+ggplot(q_data_fitlered,aes(RAC1P,log(PINCP)))+ 
+  theme(axis.text.x = element_text(angle = 90)) +geom_boxplot()
+```
+Minor differences are observed, log form for PINCH is more desired.
+
+PINCP VS SEX
+```{r}
+
+#ggplot(q_data_fitlered,aes(SEX,PINCP))+geom_boxplot()
+ggplot(q_data_fitlered,aes(SEX,log(PINCP)))+geom_boxplot()
+
+```
+Slight differnces could be observed by sex. Again log form for PINCH is more desired.
+
+PINCP VS WKHP
+```{r}
+#qplot(WKHP, PINCP, data = q_data_fitlered)
+qplot(WKHP, log(PINCP), data = q_data_fitlered)
+```
+Linearity could be observed: WKHP VS LOG(PINCP)
+
+PINCP VS SCHL
+```{r}
+#qplot(SCHL, PINCP, data = q_data_fitlered)
+#qplot(SCHL^2, PINCP, data = q_data_fitlered)
+#ggplot(q_data_fitlered,aes(SCHL,log(PINCP)))+ geom_point()+
+ # stat_summary(aes(y=log(PINCP),group=1), fun.y=mean,geom='line',color="red",group=1)
+ggplot(q_data_fitlered,aes(SCHL^2,log(PINCP)))+ geom_point()+
+  stat_summary(aes(y=log(PINCP),group=1), fun.y=mean,geom='line',color="red",group=1)
+q_data_fitlered$SCHL2 <- (q_data_fitlered$SCHL)^2 
+```
+SCHL in quadratic form shows linearity with log(PINCP).
+
+PINCP VS OCCP
+```{r}
+
+ggplot(q_data_fitlered,aes(x=reorder(q_data_fitlered$OCCP, q_data_fitlered$PINCP, mean),log(PINCP), fill=SEX))+
+geom_boxplot()+ 
+scale_fill_manual(labels=c("Male", "Female"),values=c("green", "light blue"))+
+theme(axis.text.x = element_text(angle = 45, hjust = 1),legend.position = "bottom" )+
+labs(title = "Log Transformed Personal Income by Occupation", subtitle = "Subset by Gender", y ="Log Transformed Personal Income", x="Grouped Occupation")
+```
+Differences could be observed.
+
+PINCP VS COW
+
+```{r}
+ggplot(q_data_fitlered,aes(COW,log(PINCP)))+geom_boxplot()
+```
+There are differences between different categories.
+
+PINCP VS MAR
+
+```{r}
+ggplot(q_data_fitlered,aes(MAR,log(PINCP)))+geom_boxplot()
+```
+Slight differences could be observed.
+
+PINCP VS AGE
+```{r}
+qplot(AGEP, log(PINCP), data = q_data_fitlered)
+```
+Roughly linear relationship could be observed.
+
+SCHL versus WKHP
+
+```{r}
+
+q4_plot_data <- q_data_fitlered
+
+#Verify that it filtered
+print(q4_plot_data)
+
+#Setting the boundaries for the categories
+max(q4_plot_data$WKHP)
+min(q4_plot_data$WKHP)
+max(q4_plot_data$PINCP)
+min(q4_plot_data$PINCP)
+
+#q4_plot_data$WKHP<-cut(q4_plot_data$WKHP, c(0, 10, 20, 30, 40, 50, 60, 70, 99))
+q4_plot_data$PINCP<-cut(q4_plot_data$PINCP, c(-15000, 25000, 50000, 75000, 10000, 150000, 200000, 300000, 1500000))
+
+#print(q4_plot_data)
+
+#q4_plot_data %>% 
+#  ggplot()+
+#  geom_bar(aes(WKHP ,..count..))
+
+q4_plot_data %>% 
+  ggplot()+
+  geom_boxplot(aes(PINCP ,WKHP))+
+  scale_x_discrete(labels=c("(-15K to 25K]", "(25K to 50K]", "(50K to 75K]", "(75K to 100K]", "(100K to 150K]", "(150K to 200K]", "(200K to 300K]", "(300K to 1,500K]")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),plot.title = element_text(hjust = 0.5))+
+  labs(x="Personal Income", y="Hours of Work Per Week",title="Distribution of Hours Worked by Person Income Categories",
+       caption="The data is based on individuals living in Oregon, with the age range of 16 to 67")
+```
+
+
+# Model Fitting
+
+Model Fitting
+
+Setting up the data, filtering for consistency and taking out 25% for test and inference
+
+```{r}
+set.seed(2020)
+
+(n <- dim(q_data_fitlered)[1])
+(r <- round(n * .75))
+idx <- 1:n
+nidx <- sample(idx, r, replace = FALSE)
+data_train <- q_data_fitlered[nidx, ]
+data_test <- q_data_fitlered[-nidx, ]
+
+```
+
+```{r}
+
+final_q1_q3 <- lm(formula = log(PINCP) ~ WKHP + OCCP + AGEP + SCHL2 + COW + 
+    MAR + SEX + SCHL + RAC1P, data = q_data_fitlered)
+
+final_q4_a <- lm(formula = WKHP ~ log(PINCP) + OCCP + SEX + AGEP + COW + MAR + RAC1P + SCHL,
+               data = data_train)
+
+summary(final_q1_q3)
+summary(final_q4_a)
+
+```
+
+
+
+
+## Question 1 
+```{r}
+q1_lower <- lm(log(PINCP) ~ 1, data=data_train)
+q1_upper <- lm(log(PINCP) ~ SEX + AGEP + SCHL + SCHL2 + MAR + WKHP + COW + OCCP, data=data_train)
+step(q1_lower, scope=list(upper=q1_upper, lower=q1_lower),direction="forward",test="F")
+
+q1_tree <- data_train
+
+q1_tree$PINCP2<-cut(q1_tree$PINCP, c(0, 25000, 50000, 75000, 10000, 150000, 200000, 300000, 1500000))
+tr <- tree(PINCP2 ~ COW  + WKHP + SCHL + AGEP + SEX + MAR + RAC1P, data = q1_tree)
+summary(tr)
+
+plot(tr); text(tr)
+
+
+
+```
+
+```{R}
+# Final model
+# + RAC1P
+final_q1 <- lm(formula = log(PINCP) ~ WKHP + OCCP + AGEP + SCHL2 + COW + 
+    MAR + SEX + SCHL + RAC1P, data = data_train)
+
+# Residual vs Fitted
+qplot(final_q1 $fitted.values, final_q1 $residuals)
+
+# Residual VS Explanatory
+qplot(data_train$WKHP, final_q1$residuals)
+qplot(data_train$AGEP, final_q1$residuals)
+qplot(data_train$SCHL, final_q1$residuals)
+
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(final_q1$residuals)
+qqline(final_q1$residuals)
+```
+The plot of Residual vs Fitted looks good, but normality is violated.
+
+```{R}
+# To answer Q1
+ans_q1 <- lm(formula = log(PINCP) ~ WKHP + OCCP + AGEP + SCHL2 + COW + 
+    MAR + SEX + SCHL + RAC1P, data = data_test)
+summary(ans_q1)
+# Residual vs Fitted
+qplot(ans_q1$fitted.values, ans_q1$residuals)
+
+# Residual VS Explanatory
+qplot(data_test$WKHP, ans_q1$residuals)
+qplot(data_test$AGEP, ans_q1$residuals)
+qplot(data_test$SCHL, ans_q1$residuals)
+qplot(data_test$RAC1P, ans_q1$residuals)
+
+
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(ans_q1$residuals)
+qqline(ans_q1$residuals)
+```
+
+# Question 2
+```{r}
+q2_lower <- lm(log(PINCP) ~ 1, data=data_train)
+q2_upper <- lm(log(PINCP) ~ RAC1P + AGEP + SCHL + SCHL2 + MAR + WKHP + COW + OCCP, data=data_train)
+step(q2_lower, scope=list(upper=q2_upper, lower=q2_lower),direction="forward", test="F")
+```
+
+```{R}
+# Final model
+# + SEX
+final_q2 <- lm(formula = log(PINCP) ~ WKHP + OCCP + AGEP + SCHL2 + COW + 
+    MAR + SCHL + RAC1P + SEX, data = data_train)
+
+
+test <- lm(formula = log(PINCP) ~WKHP + OCCP, data = data_train)
+anova(test, final_q2)
+
+# Residual vs Fitted
+qplot(final_q2$fitted.values, final_q2$residuals)
+
+# Residual VS Explanatory
+qplot(data_train$WKHP, final_q2$residuals)
+qplot(data_train$AGEP, final_q2$residuals)
+qplot(data_train$SCHL, final_q2$residuals)
+qplot(data_train$SCHL2, final_q2$residuals)
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(final_q2$residuals)
+qqline(final_q2$residuals)
+```
+Fitted resisual plot looks good, normality is violated.
+
+```{R}
+# To answer Q2
+ans_q2 <- lm(formula = log(PINCP) ~ WKHP + OCCP + AGEP + SCHL2 + COW + 
+    MAR + SCHL + RAC1P + SEX, data = data_test)
+summary(ans_q2)
+# Residual vs Fitted
+qplot(ans_q2$fitted.values, ans_q2$residuals)
+
+# Residual VS Explanatory
+qplot(data_test$WKHP, ans_q2$residuals)
+qplot(data_test$AGEP, ans_q2$residuals)
+qplot(data_test$SCHL, ans_q2$residuals)
+qplot(data_test$SEX, ans_q2$residuals)
+
+
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(ans_q2$residuals)
+qqline(ans_q2$residuals)
+```
+
+# Question 3
+```{r}
+q3_lower <- lm(log(PINCP) ~ 1, data=data_train)
+q3_upper <- lm(log(PINCP) ~ SEX + AGEP + MAR + COW + OCCP + RAC1P, data=data_train)
+step(q3_lower, scope=list(upper=q3_upper, lower=q3_lower),direction="forward", test="F")
+
+```
+
+```{R}
+# Final model
+# + SCHL, +WKHP
+final_q3 <- lm(formula = log(PINCP) ~ OCCP + AGEP + COW + MAR + SEX + RAC1P + SCHL+ SCHL2 + WKHP, data = data_train)
+
+# Residual vs Fitted
+qplot(final_q3$fitted.values, final_q3$residuals)
+
+# Residual VS Explanatory
+qplot(data_train$WKHP, final_q3$residuals)
+qplot(data_train$AGEP, final_q3$residuals)
+qplot(data_train$SCHL, final_q3$residuals)
+qplot(data_train$SCHL2, final_q3$residuals)
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(final_q3$residuals)
+qqline(final_q3$residuals)
+```
+Again, fitted resisual plot looks good, normality is violated.
+
+```{R}
+# To answer Q3
+ans_q3 <- lm(formula = log(PINCP) ~ OCCP + AGEP + COW + MAR + SEX + RAC1P + SCHL + SCHL2 + WKHP, data = data_test)
+
+test <- lm(formula = log(PINCP) ~ OCCP + AGEP + COW + MAR + SEX + RAC1P, data = data_test)
+
+summary(ans_q3)
+
+anova(test, ans_q3)
+
+# Residual vs Fitted
+qplot(ans_q3$fitted.values, ans_q3$residuals)
+
+# Residual VS Explanatory
+qplot(data_test$AGEP, ans_q3$residuals)
+qplot(data_test$SCHL, ans_q3$residuals)
+qplot(data_test$WKHP, ans_q3$residuals)
+
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(ans_q3$residuals)
+qqline(ans_q3$residuals)
+```
+
+Issues for 1-3: 
+Normality is violated;
+Constant vairance may be violated;
+All three questions are answered by the full model, train set is too large?
+
+# Question 4
+
+# To find potential relationship between varaibles and proper forms of variables included in linear models, based on following plots for Q4:
+
+```{r}
+ggplot(q_data_fitlered,aes(SEX,WKHP))+geom_boxplot()
+
+ggplot(q_data_fitlered,aes(OCCP,WKHP))+geom_boxplot()+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(q_data_fitlered,aes(COW,WKHP))+geom_boxplot()
+
+ggplot(q_data_fitlered,aes(RAC1P,WKHP))+geom_boxplot()
+
+ggplot(q_data_fitlered,aes(MAR,WKHP))+geom_boxplot()
+
+ggplot(q_data_fitlered,aes(AGEP, WKHP))+ geom_point()+
+  stat_summary(aes(y=log(PINCP),group=1), fun.y=mean,geom='line',color="red",group=1)
+
+ggplot(q_data_fitlered,aes(SCHL, WKHP))+ geom_point()+
+  stat_summary(aes(y=SCHL,group=1), fun.y=mean,geom='line',color="red",group=1)
+
+ggplot(q_data_fitlered,aes(log(PINCP), WKHP))+ geom_point()+
+  stat_summary(aes(y=log(PINCP),group=1), fun.y=mean,geom='line',color="red",group=1)
+
+```
+
+# Question 4
+```{r}
+q4_lower <- lm(WKHP ~ 1, data=data_train)
+q4_upper <- lm(WKHP ~ SEX + AGEP + MAR + COW + log(PINCP) + RAC1P + OCCP, data=data_train)
+step(q4_lower, scope=list(upper=q4_upper, lower=q4_lower),direction="forward")
+
+```
+
+```{R}
+# Final model
+# + SCHL
+final_q4 <- lm(formula = WKHP ~ log(PINCP) + OCCP + SEX + AGEP + COW + MAR + RAC1P + SCHL,
+               data = data_train)
+test <- lm(formula = WKHP ~ log(PINCP) + OCCP + SEX + AGEP + COW + MAR +  RAC1P + SCHL,
+               data = data_train)
+summary(final_q4)
+anova(test, final_q4)
+
+# Residual vs Fitted
+qplot(final_q4$fitted.values, final_q4$residuals)
+
+# Residual VS Explanatory
+log_PINCP <- log(data_train$PINCP)
+qplot(log_PINCP, final_q4$residuals)
+qplot(data_train$AGEP, final_q4$residuals)
+qplot(data_train$SCHL, final_q4$residuals)
+
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(final_q4$residuals)
+qqline(final_q4$residuals)
+```
+patterns of residual is not explained by current variables.
+
+```{R}
+# To answer Q4
+ans_q4 <- lm(formula = WKHP ~ log(PINCP) + OCCP + SEX + AGEP + COW + MAR + RAC1P + SCHL, data = data_test)
+summary(ans_q4)
+# Residual vs Fitted
+qplot(ans_q4$fitted.values, ans_q4$residuals)
+
+# Residual VS Explanatory
+qplot(data_test$WKHP, ans_q4$residuals)
+qplot(data_test$AGEP, ans_q4$residuals)
+qplot(data_test$SCHL, ans_q4$residuals)
+
+# QQ Plot
+par(mfrow = c(1, 1))
+qqnorm(ans_q4$residuals)
+qqline(ans_q4$residuals)
+```
+
+```{R}
+# Try penalized models
+
+#install.packages("plotmo")
+library(glmnet)
+library(ncvreg)
+library(parcor)
+library(mht)
+library(plotmo)
+
+# Q1-Q3
+x <- data.matrix(data_train[,1:6])
+z <- data.matrix(data_train[,8:9])
+x <- cbind(x, z)
+y <- log(as.matrix(data_train[,7]))
+
+## issue: factors are suspected to treat as numerical???
+elnet <- glmnet(x, y, alpha = 0.5)
+elnet.cv <- cv.glmnet(x, y, alpha = 0.5)
+# Finding the Elastic net estimates for lambda with minimum cross-validation error
+elnet1 <- glmnet(x, y, lambda = elnet.cv$lambda.min, alpha = 0.5)
+# Elastic net estimates of coefficients
+elnet1$beta
+
+plotres(elnet.cv)
+
+##### Adaptive Lasso Estimates
+adlasso <- adalasso(x, y)
+adlasso$coefficients.adalasso
+adlasso
+
+
+# This part is not quite right, trying to plot the residuals
+#x_test <- data.matrix(data_test[,1:6])
+#z_test <- data.matrix(data_test[,8:9])
+#x_test <- cbind(x_test, z_test)
+
+#preds <- predict(elnet1, newx=x_test)
+#test1 <- data_test
+#test1
+#test1$preds <- preds
+#test1$residuals <- test1$preds-test1$PINCP
+
+#qplot(log(test1$PINCP), test1$residuals)
+
+
+# Q4
+x_q4 <- data.matrix(data_train[,1:5])
+z_q4 <- data.matrix(data_train[,7:9])
+x_q4 <- cbind(x_q4, z_q4)
+y_q4 <- as.matrix(data_train[,6])
+
+## issue: factors are suspected to treat as numerical???
+elnet_q4 <- glmnet(x_q4, y_q4, alpha = 0.5)
+elnet.cv_q4 <- cv.glmnet(x_q4, y_q4, alpha = 0.5)
+# Finding the Elastic net estimates for lambda with minimum cross-validation error
+elnet1_q4 <- glmnet(x_q4, y_q4, lambda = elnet.cv$lambda.min, alpha = 0.5)
+# Elastic net estimates of coefficients
+elnet1_q4$beta
+
+plotres(elnet.cv_q4)
+
+##### Adaptive Lasso Estimates
+adlasso_q4 <- adalasso(x, y)
+adlasso_q4$coefficients.adalasso
+adlasso_q4
+```
+
+
+#Appendix A - Source Code
+```{r code=readLines(knitr::purl('./Project1_report_Code.Rmd', documentation = 0)), eval = FALSE, echo=TRUE}
+
+```
