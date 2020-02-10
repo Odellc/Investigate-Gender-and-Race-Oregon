@@ -1,5 +1,5 @@
 ---
-title: "Census Data"
+title: "Investigating the effects of race and gender"
 author: "Odell, Christopher"
 date: '2020-02-02'
 output:
